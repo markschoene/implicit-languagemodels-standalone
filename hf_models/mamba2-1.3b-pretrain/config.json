@@ -25,44 +25,23 @@
   "data_info": {},
   "dataset_name": null,
   "deq_params": {
-    "norm": {
-      "norm_clip": false,
-      "norm_clip_val": 1.0,
-      "norm_no_scale": false,
-      "norm_target_norm": 1.0,
-      "norm_type": "weight_norm",
-      "sn_n_power_iters": 1
-    },
-    "regularization": {
-      "jac_incremental": 0,
-      "jac_loss_freq": 0.0,
-      "jac_loss_weight": 0.0,
-      "sradius_mode": true
-    },
     "solver": {
-      "b_max_iter": 32,
-      "b_solver": "fixed_point_iter",
-      "b_stop_mode": "rel",
-      "b_tol": 0.001,
-      "eval_f_max_iter": 0,
-      "eval_factor": 4.0,
       "f_max_iter": 4,
-      "f_solver": "fixed_point_iter",
-      "f_stop_mode": "rel",
-      "f_tol": 0.05
+      "f_tol": 0.05,
+      "eval_factor": 4.0,
+      "eval_f_max_iter": 0
     },
     "training": {
-      "core": "sliced",
       "gamma": 0.8,
       "grad": 1,
-      "hook_ift": false,
-      "ift": false,
-      "indexing": [],
-      "n_states": 1,
-      "sup_gap": -1,
-      "sup_loc": [],
-      "tau": 0.8
-    }
+      "tau": 0.8,
+      "beta": 0.8
+    },
+    "regularization": {
+      "jac_loss_weight": 0.0,
+      "jac_loss_freq": 0.0
+    },
+    "weight_norm": true
   },
   "dropout": 0.0,
   "emb_init_std": 0.01,
