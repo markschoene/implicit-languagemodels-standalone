@@ -96,7 +96,8 @@ def fixed_point_iter(func, x0, max_iter, tol, beta=1.0, stop_mode="rel"):
         best_rel = torch.where(improved, rel_diff, best_rel)
         best_step = torch.where(improved, torch.tensor(k + 1.0, device=x0.device), best_step)
         # Update best estimate for improved samples
-        best_x = torch.where(improved.unsqueeze(-1).expand_as(fx), fx, best_x)
+        mask = improved.view(bsz, *([1] * (fx.dim() - 1))).expand_as(fx)
+        best_x = torch.where(mask, fx, best_x)
 
         x = fx
 
