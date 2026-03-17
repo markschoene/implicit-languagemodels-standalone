@@ -32,7 +32,6 @@
       "eval_f_max_iter": 0
     },
     "training": {
-      "gamma": 0.8,
       "grad": 1,
       "tau": 0.8,
       "beta": 0.8

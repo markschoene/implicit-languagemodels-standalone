@@ -5,6 +5,7 @@ Common backbones for the implicit LLMs defined in
 """
 
 import math
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from functools import partial
 from typing import Any, Dict, Optional
@@ -274,7 +275,6 @@ class ImplicitModel(BaseModel, ImplicitMixin):
         # get relevant attributes from config
         self.jac_loss_freq = self.deq_args.get("jac_loss_freq", 0.0)
         self.jac_loss_weight = self.deq_args.get("jac_loss_weight", 0.0)
-        self.gamma = self.deq_args.get("gamma", 0.8)
         self.f_thres = self.deq.eval_f_max_iter
         self.f_tol = self.deq_args["f_tol"]
         self.beta = self.deq_args.get("beta", self.deq_args.get("tau", 0.8))
@@ -301,6 +301,16 @@ class ImplicitModel(BaseModel, ImplicitMixin):
 
         # sequential eval under noise with moving average
         self.ema_alpha = ema_alpha
+
+    @contextmanager
+    def spectral_radius_mode(self, enabled=True):
+        """Temporarily set spectral radius computation for eval passes."""
+        prev = self.sradius_mode
+        self.sradius_mode = enabled
+        try:
+            yield
+        finally:
+            self.sradius_mode = prev
 
     def forward(self, hidden_states: Tensor, mixer_kwargs: Dict) -> ImplicitBaseModelOutputWithPast:
         reset_dropout(self)

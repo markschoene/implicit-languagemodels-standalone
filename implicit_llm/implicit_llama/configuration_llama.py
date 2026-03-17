@@ -14,7 +14,6 @@ class SolverConfig:
 
 @dataclass
 class TrainingConfig:
-    gamma: float
     grad: int
     tau: float
     beta: float
