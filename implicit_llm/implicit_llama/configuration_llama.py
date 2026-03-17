@@ -6,64 +6,44 @@ from transformers import PretrainedConfig
 
 @dataclass
 class SolverConfig:
-    f_solver: str
-    b_solver: str
     f_max_iter: int
-    b_max_iter: int
     f_tol: float
-    b_tol: float
-    f_stop_mode: str
-    b_stop_mode: str
     eval_factor: float
     eval_f_max_iter: int
 
 
 @dataclass
-class NormConfig:
-    norm_type: str
-    norm_no_scale: bool
-    norm_clip: bool
-    norm_clip_val: float
-    norm_target_norm: float
-    sn_n_power_iters: int
-
-
-@dataclass
 class TrainingConfig:
-    core: str
-    ift: bool
-    hook_ift: bool
-    n_states: int
-    indexing: list
     gamma: float
     grad: int
     tau: float
-    sup_gap: int
-    sup_loc: list
+    beta: float
 
 
 @dataclass
 class RegularizationConfig:
     jac_loss_weight: float
     jac_loss_freq: float
-    jac_incremental: int
-    sradius_mode: bool
 
 
 @dataclass
 class DEQConfig:
     solver: dict
-    norm: dict
     training: dict
     regularization: dict
+    weight_norm: bool = True
 
     @staticmethod
     def from_dict(deq_dict):
         solver_dict = asdict(SolverConfig(**deq_dict["solver"]))
-        norm_dict = asdict(NormConfig(**deq_dict["norm"]))
         training_dict = asdict(TrainingConfig(**deq_dict["training"]))
         regularization_dict = asdict(RegularizationConfig(**deq_dict["regularization"]))
-        return DEQConfig(solver=solver_dict, norm=norm_dict, training=training_dict, regularization=regularization_dict)
+        return DEQConfig(
+            solver=solver_dict,
+            training=training_dict,
+            regularization=regularization_dict,
+            weight_norm=deq_dict.get("weight_norm", True),
+        )
 
 
 @dataclass
