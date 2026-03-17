@@ -1,5 +1,5 @@
 [build-system]
-requires = ["hatchling >= 1.26"]
+requires = ["hatchling >= 1.26", "torch>=2.0,<=2.6"]
 build-backend = "hatchling.build"
 
 [project]
@@ -20,6 +20,7 @@ dependencies = [
     "opt-einsum>=3.3",
     "causal_conv1d==1.5.0.post8",
     "mamba_ssm==2.2.4",
+    "transformers>=4.0,<5",
     "hydra-core",
     "matplotlib",
     "triton",
