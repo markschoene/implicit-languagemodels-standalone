@@ -4,7 +4,6 @@ Standalone fixed-point solver with phantom gradient backward pass.
 Replaces the TorchDEQ dependency with a minimal implementation focused on:
 - Fixed-point iteration with momentum (beta)
 - Phantom gradient for differentiable backward pass (tau)
-- Variational dropout (fixed mask across solver iterations)
 - Weight normalization via PyTorch built-in parametrizations
 - Jacobian regularization (Hutchinson estimator)
 """
@@ -14,46 +13,7 @@ import torch
 import torch.nn as nn
 from torch.nn.utils.parametrizations import weight_norm
 
-
-# ---------------------------------------------------------------------------
-# Variational Dropout
-# ---------------------------------------------------------------------------
-
-class _VariationalDropoutNd(nn.Module):
-    """
-    Base class for variational dropout layers.
-
-    A single dropout mask is generated once per training iteration and applied
-    consistently across all solver steps, preserving dynamics during fixed-point
-    iteration. Call ``reset_dropout(model)`` at the start of each iteration.
-    """
-
-    def __init__(self, dropout=0.5):
-        super().__init__()
-        if dropout < 0 or dropout > 1:
-            raise ValueError(
-                f"dropout probability must be between 0 and 1, got {dropout}"
-            )
-        self.dropout = dropout
-        self.mask = None
-
-    def reset_mask(self, x):
-        raise NotImplementedError
-
-    def forward(self, x):
-        if not self.training or self.dropout == 0.0:
-            return x
-        if self.mask is None:
-            self.reset_mask(x)
-        mask = self.mask.expand_as(x)
-        return mask * x
-
-
-def reset_dropout(model):
-    """Reset variational dropout masks for all layers in the model."""
-    for module in model.modules():
-        if isinstance(module, _VariationalDropoutNd):
-            module.mask = None
+from .modules.dropout import reset_dropout
 
 
 # ---------------------------------------------------------------------------
