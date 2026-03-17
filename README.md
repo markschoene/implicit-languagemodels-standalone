@@ -1,31 +1,17 @@
-<div align="center">
+# Implicit Language Models (Standalone)
 
-<h1> Implicit Language Models are RNNs</h1>  
-<h3>Balancing Parallelization and Expressivity</h3>
+A standalone fork of [implicit_languagemodels](https://github.com/microsoft/implicit_languagemodels) with a self-contained fixed-point solver, removing the external [TorchDEQ](https://github.com/locuslab/torchdeq) dependency.
 
-Mark Schöne<sup>1,2 *</sup>, Babak Rahmani<sup>2 *</sup>, Heiner Kremer<sup>2</sup>, Fabian Falck<sup>2</sup>, Hitesh Ballani<sup>2</sup>, Jannes Gladrow<sup>2 $\dagger$</sup>
+Based on the paper [Implicit Language Models are RNNs: Balancing Parallelization and Expressivity](https://arxiv.org/abs/2502.07827) (ICML 2025 Spotlight).
 
-<sup>1</sup>  TU Dresden, Germany, <sup>2</sup> Microsoft Research, Cambridge, UK
+## What's Different
 
-(\*) Equal contribution. ($\dagger$) Corresponding author.
-
-[![arXiv](https://img.shields.io/badge/ArXiv-2502.07827-b31b1b.svg?logo=arXiv)](https://arxiv.org/abs/2502.07827)
-[![Project](https://img.shields.io/badge/Homepage-AOC-orange.svg?logo=googlehome)](https://www.microsoft.com/en-us/research/project/aoc)
-
-</div>
-
-## ICML 2025 Spotlight
-
-🎉🚀 We are delighted to announce that our paper was spotlighted at ICML 2025! 🚀🎉
-
-# Abstract
-State-space models (SSMs) and transformers dominate the language modeling landscape. However, they are constrained to a lower computational complexity than classical recurrent neural networks (RNNs), limiting their expressivity. In contrast, RNNs lack parallelization during training, raising fundamental questions about the trade off between parallelization and expressivity. We propose implicit SSMs, which iterate a transformation until convergence to a fixed point. Theoretically, we show that implicit SSMs implement the non-linear state-transitions of RNNs. Empirically, we find that only approximate fixed-point convergence suffices, enabling the design of a scalable training curriculum that largely retains parallelization, with full convergence required only for a small subset of tokens. Our approach demonstrates superior state-tracking capabilities on regular languages, surpassing transformers and SSMs. We further scale implicit SSMs to natural language reasoning tasks and pretraining of large-scale language models up to 1.3B parameters on 207B tokens - representing, to our knowledge, the largest implicit model trained to date. Notably, our implicit models outperform their explicit counterparts on standard benchmarks.
+- **Standalone fixed-point solver** with phantom gradient backward pass, replacing TorchDEQ (`implicit_llm/solver.py`)
+- **Simplified config dataclasses** — removed TorchDEQ-specific fields (separate forward/backward solvers, norm config, etc.)
+- **Refactored variational dropout** into a single `VariationalDropout1d` class
+- **Single-command install** — torch added as build-system requirement
 
 # Installation
-Requirements:
-- `mamba_ssm` and `causal_conv1d`
-
-Install this package 
 ```
 pip install .
 ```
