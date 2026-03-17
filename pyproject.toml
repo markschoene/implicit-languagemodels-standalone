@@ -18,7 +18,6 @@ dependencies = [
     "torch>=2.0,<=2.6",
     "einops",
     "opt-einsum>=3.3",
-    "torchdeq",
     "causal_conv1d==1.5.0.post8",
     "mamba_ssm==2.2.4",
     "hydra-core",
