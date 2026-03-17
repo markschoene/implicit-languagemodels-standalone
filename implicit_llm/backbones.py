@@ -18,10 +18,10 @@ except ImportError:
     from mamba_ssm.ops.triton.layer_norm import RMSNorm
 
 import torch.nn as nn
-from torchdeq import get_deq
-from torchdeq.dropout import reset_dropout
-from torchdeq.norm import apply_norm
 from transformers.modeling_outputs import BaseModelOutputWithPast
+
+from .modules.dropout import reset_dropout
+from .solver import FixedPointSolver, apply_weight_norm
 
 from .implicit import ImplicitMixin
 from .modules.block import create_block
@@ -254,33 +254,36 @@ class ImplicitModel(BaseModel, ImplicitMixin):
         self.injection = nn.Linear(self.d_model, self.get_input_proj_dim())
         self.injection_norm = RMSNorm(self.d_model, eps=1e-5)
 
-        # set the DEQ
+        # set the fixed-point solver
         self.deq_params = deq_params
         self.deq_args = {
-            **deq_params["solver"],
-            **deq_params["norm"],
-            **deq_params["training"],
-            **deq_params["regularization"],
+            **deq_params.get("solver", {}),
+            **deq_params.get("training", {}),
+            **deq_params.get("regularization", {}),
         }
-        self.deq = get_deq(self.deq_args)
+        self.deq = FixedPointSolver(
+            f_max_iter=self.deq_args["f_max_iter"],
+            f_tol=self.deq_args["f_tol"],
+            beta=self.deq_args.get("beta", self.deq_args.get("tau", 0.8)),
+            tau=self.deq_args.get("tau", 0.8),
+            grad_steps=self.deq_args["grad"],
+            eval_factor=self.deq_args.get("eval_factor", 1.0),
+            eval_f_max_iter=self.deq_args.get("eval_f_max_iter", 0),
+        )
 
-        # get all relevant attributes from deq config
-        self.jac_loss_freq = self.deq.args.config["jac_loss_freq"]
-        self.jac_loss_weight = self.deq.args.config["jac_loss_weight"]
-        self.sradius_mode = self.deq.args.config["sradius_mode"]
-        self.gamma = self.deq.args.config["gamma"]
-        eval_max_iter = self.deq_args["eval_f_max_iter"]
-        eval_factor = self.deq_args["eval_factor"]
-        f_max_iter = self.deq_args["f_max_iter"]
-        self.f_thres = eval_max_iter if eval_max_iter > 0 else int(f_max_iter * eval_factor)
+        # get relevant attributes from config
+        self.jac_loss_freq = self.deq_args.get("jac_loss_freq", 0.0)
+        self.jac_loss_weight = self.deq_args.get("jac_loss_weight", 0.0)
+        self.gamma = self.deq_args.get("gamma", 0.8)
+        self.f_thres = self.deq.eval_f_max_iter
         self.f_tol = self.deq_args["f_tol"]
-        self.tau = self.deq_args["tau"]
-        print("Spectral radius mode:", self.sradius_mode)
+        self.beta = self.deq_args.get("beta", self.deq_args.get("tau", 0.8))
+        self.sradius_mode = False
 
-        # prepare DEQ parameters
+        # prepare weight normalization
         self.init_gain = init_gain
         if self.do_weight_norm:
-            apply_norm(self, args=self.deq_args)
+            apply_weight_norm(self)
         self.apply(
             partial(
                 _init_weights,
@@ -298,9 +301,6 @@ class ImplicitModel(BaseModel, ImplicitMixin):
 
         # sequential eval under noise with moving average
         self.ema_alpha = ema_alpha
-        # overwrite self.sradius_mode
-        self.sradius_mode = False
-        print("sradius is default to 'False' despite config setting. Change it to 'True' if needed.")
 
     def forward(self, hidden_states: Tensor, mixer_kwargs: Dict) -> ImplicitBaseModelOutputWithPast:
         reset_dropout(self)
