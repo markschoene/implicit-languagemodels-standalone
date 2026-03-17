@@ -2,8 +2,7 @@ from functools import partial
 
 import torch
 from torch import Tensor, nn
-from torchdeq import reset_deq
-from torchdeq.loss import jac_reg
+from .solver import reset_deq, jac_reg
 
 
 class ImplicitMixin(nn.Module):
@@ -63,9 +62,8 @@ class ImplicitMixin(nn.Module):
             jac_loss: Jacobian regularization loss
             log_dict: dictionary with logging information
         """
-        # Reset normalization and dropout masks in DEQ
-        if self.do_weight_norm:
-            reset_deq(self)
+        # Reset dropout masks before each forward pass
+        reset_deq(self)
 
         # compute injected inputs
         injected_states = self.injection_norm(hidden_states)
@@ -104,7 +102,7 @@ class ImplicitMixin(nn.Module):
         # run the DEQ for a fixed number of steps
         for _ in range(n_iter-1):
             z_f = self.func(zs, x, mixer_kwargs=mixer_kwargs)
-            zs = (1.0-self.tau) * zs + self.tau * z_f
+            zs = (1.0-self.beta) * zs + self.beta * z_f
             if indexing:
                 indexing_list.append(zs)
 
@@ -171,7 +169,7 @@ class ImplicitMixin(nn.Module):
                 diff_rel = relative_diff(z, z_next)
                 diff_abs = absolute_diff(z, z_next)
             # Optionally update state with momentum (tau).
-            z = (1 - self.tau) * z + self.tau * z_next
+            z = (1 - self.beta) * z + self.beta * z_next
 
             # Use a lenient tolerance for the first token.
             f_tol = 0.2 if is_first_token else self.f_tol
