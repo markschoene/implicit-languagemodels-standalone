@@ -15,7 +15,7 @@ from transformers.utils import ModelOutput
 from ..backbones import ExplicitModel, ImplicitModel, ModelConfig
 from ..modules.heads import PartialCrossEntropyHead
 from ..modules.mamba2 import Mamba2Cache
-from ..utils import Embedding, EmbeddingMixin, load_checkpoint
+from ..utils import load_checkpoint
 from .configuration_mamba2 import ImplicitMambaConfig
 
 
@@ -51,12 +51,13 @@ class ImplicitCausalLMOutputWithPast(CausalLMOutputWithPast, Mamba2Output):
     jac_loss: Optional[Tensor] | None = None
 
 
-class ImplicitMambaForCausalLM(PreTrainedModel, EmbeddingMixin, GenerationMixin):
+class ImplicitMambaForCausalLM(PreTrainedModel, GenerationMixin):
     """
     Model class for explicit and implicit Causal LM.
     """
 
     config_class = ImplicitMambaConfig
+    _tied_weights_keys = ["criterion.decoder.weight"]
 
     def __init__(
         self,
@@ -67,7 +68,6 @@ class ImplicitMambaForCausalLM(PreTrainedModel, EmbeddingMixin, GenerationMixin)
         backbone_config: Dict = config.backbone_config
         n_tokens: int = config.n_tokens
         head_bias: bool = config.head_bias
-        d_embed: Optional[int] = config.d_embed
         dropout: float = config.dropout
         weight_decay: float = config.weight_decay
         tokenizer: nn.Module = config.tokenizer
@@ -78,6 +78,7 @@ class ImplicitMambaForCausalLM(PreTrainedModel, EmbeddingMixin, GenerationMixin)
         load_from_pretrained_shell: bool = config.load_from_pretrained_shell
         keep_sequence_dim: bool = config.keep_sequence_dim
         save_output_ids: bool = config.save_output_ids
+        config.tie_word_embeddings = tie_embeddings
         super().__init__(config)
 
         self.config = config
@@ -85,25 +86,19 @@ class ImplicitMambaForCausalLM(PreTrainedModel, EmbeddingMixin, GenerationMixin)
         self.config._attn_implementation = "sdpa"
         backbone_cls = ExplicitModel if "explicit" in backbone_type else ImplicitModel
         backbone = backbone_cls(deq_params=deq_params, **backbone_config)
-        self.config.vocab_size = n_tokens  # is this correct?
+        self.config.vocab_size = n_tokens
         d_model = backbone.d_model
         if n_tokens % pad_vocab_size_multiple != 0 and pad_vocab:
             n_tokens += pad_vocab_size_multiple - (n_tokens % pad_vocab_size_multiple)
 
-        word_emb = Embedding(n_tokens, d_embed, d_model)
-        criterion = PartialCrossEntropyHead(
+        self.backbone = backbone
+        self.word_emb = nn.Embedding(n_tokens, d_model)
+        self.criterion = PartialCrossEntropyHead(
             vocab_size=n_tokens,
-            d_embed=d_embed,
             d_model=d_model,
             tokenizer=tokenizer,
             head_bias=head_bias,
         )
-        if tie_embeddings:
-            criterion.tie_weights(word_emb)
-
-        self.backbone = backbone
-        self.word_emb = word_emb
-        self.criterion = criterion
         self.emb_init_std = emb_init_std
         self.keep_sequence_dim = keep_sequence_dim
         self.save_output_ids = save_output_ids
@@ -121,11 +116,19 @@ class ImplicitMambaForCausalLM(PreTrainedModel, EmbeddingMixin, GenerationMixin)
         self.load_from_pretrained_shell = load_from_pretrained_shell
 
         self.apply(self._init_weights)
+        self.post_init()
 
-    def tie_weights(self):
-        if self.tie_embeddings:
-            assert isinstance(self.criterion, PartialCrossEntropyHead), "Criterion is not PartialCrossEntropyHead"
-            self.criterion.tie_weights(self.word_emb)
+    def get_input_embeddings(self):
+        return self.word_emb
+
+    def set_input_embeddings(self, value):
+        self.word_emb = value
+
+    def get_output_embeddings(self):
+        return self.criterion.decoder
+
+    def set_output_embeddings(self, value):
+        self.criterion.decoder = value
 
     def create_config_attributes(self):
         return ModelConfig(

@@ -15,14 +15,12 @@ class PartialCrossEntropyHead(nn.Module):
     def __init__(
         self,
         vocab_size: int,
-        d_embed: int,
         d_model: int,
         tokenizer=None,
         head_bias: bool = False,
         ignore_index: int = -100,
     ):
         super(PartialCrossEntropyHead, self).__init__()
-        self.d_embed = d_embed
         self.d_model = d_model
         self.vocab_size = vocab_size
         self.tokenizer = tokenizer
@@ -30,13 +28,7 @@ class PartialCrossEntropyHead(nn.Module):
         # this attribute is called by the lightning module to distinguish the computation of accuracies
         self.accuracy = True
 
-        if d_model != d_embed:
-            self.decoder = nn.Sequential(
-                nn.Linear(d_model, d_embed, bias=False),
-                nn.Linear(d_embed, vocab_size, bias=True if head_bias else False),
-            )
-        else:
-            self.decoder = nn.Linear(d_embed, vocab_size, bias=True if head_bias else False)
+        self.decoder = nn.Linear(d_model, vocab_size, bias=head_bias)
         self.loss_fn = nn.CrossEntropyLoss(
             ignore_index=ignore_index,
             reduction="mean",
@@ -73,18 +65,3 @@ class PartialCrossEntropyHead(nn.Module):
 
         return loss, token_accuracy, string_accuracy, evaluate_tokens
 
-    def tie_weights(self, embeddings: nn.Embedding):
-        """
-        Tie the weights of the final projection layer to the input embeddings.
-        """
-        num_embeddings, embedding_dim = embeddings.emb.weight.shape
-
-        if self.d_model != self.d_embed:
-            # the decoder is a nn.Sequential, so we need to set the weight of the first layer
-            self.decoder[0].weight.data = embeddings.projection.weight.t()
-            self.decoder[1] = nn.Linear(embedding_dim, num_embeddings, bias=self.decoder.bias is not None)
-            self.decoder[1].weight = embeddings.emb.weight
-        else:
-            self.decoder = nn.Linear(embedding_dim, num_embeddings, bias=self.decoder.bias is not None)
-            self.decoder.weight = embeddings.emb.weight
-        self.vocab_size = num_embeddings

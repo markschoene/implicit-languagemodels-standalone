@@ -50,7 +50,7 @@ class GenerationMixin:
 
         if inference_cache is None:
             inference_cache = self.backbone.allocate_inference_cache(
-                prompt.size(0), self.word_emb.emb.weight.device, dtype=torch.float32
+                prompt.size(0), self.word_emb.weight.device, dtype=torch.float32
             )
 
         # prefill

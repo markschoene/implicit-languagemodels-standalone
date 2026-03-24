@@ -14,7 +14,6 @@ from transformers.modeling_attn_mask_utils import AttentionMaskConverter
 from transformers.modeling_outputs import CausalLMOutputWithPast
 
 from ..backbones import ExplicitModel, ImplicitModel, ModelConfig
-from ..modules.embeddings import Embedding, EmbeddingMixin
 from ..modules.heads import PartialCrossEntropyHead
 from ..utils import load_checkpoint
 from .configuration_llama import ImplicitLlamaConfig
@@ -26,13 +25,14 @@ class ImplicitCausalLMOutputWithPast(CausalLMOutputWithPast):
     jac_loss: Tensor | None = None
 
 
-class ImplicitLlamaForCausalLM(PreTrainedModel, EmbeddingMixin, GenerationMixin):
+class ImplicitLlamaForCausalLM(PreTrainedModel, GenerationMixin):
     """
     Model class for explicit and implicit Causal LM.
     """
 
     config_class = ImplicitLlamaConfig
     _supports_sdpa = True
+    _tied_weights_keys = ["criterion.decoder.weight"]
 
     def __init__(
         self,
@@ -43,7 +43,6 @@ class ImplicitLlamaForCausalLM(PreTrainedModel, EmbeddingMixin, GenerationMixin)
         backbone_config: dict = config.backbone_config
         vocab_size: int = config.vocab_size if hasattr(config, "vocab_size") else config.n_tokens
         head_bias: bool = config.head_bias
-        d_embed: int | None = config.d_embed
         dropout: float = config.dropout
         weight_decay: float = config.weight_decay
         tokenizer: nn.Module = config.tokenizer
@@ -54,6 +53,7 @@ class ImplicitLlamaForCausalLM(PreTrainedModel, EmbeddingMixin, GenerationMixin)
         keep_sequence_dim: bool = config.keep_sequence_dim
         save_output_ids: bool = config.save_output_ids
         config._attn_implementation = "sdpa"
+        config.tie_word_embeddings = tie_embeddings
         super().__init__(config)
 
         self.config = config
@@ -65,20 +65,14 @@ class ImplicitLlamaForCausalLM(PreTrainedModel, EmbeddingMixin, GenerationMixin)
         if vocab_size % pad_vocab_size_multiple != 0 and pad_vocab:
             vocab_size += pad_vocab_size_multiple - (vocab_size % pad_vocab_size_multiple)
 
-        word_emb = Embedding(vocab_size, d_embed, d_model)
-        criterion = PartialCrossEntropyHead(
+        self.backbone = backbone
+        self.word_emb = nn.Embedding(vocab_size, d_model)
+        self.criterion = PartialCrossEntropyHead(
             vocab_size=vocab_size,
-            d_embed=d_embed,
             d_model=d_model,
             tokenizer=tokenizer,
             head_bias=head_bias,
         )
-        if tie_embeddings:
-            criterion.tie_weights(word_emb)
-
-        self.backbone = backbone
-        self.word_emb = word_emb
-        self.criterion = criterion
         self.emb_init_std = emb_init_std
         self.keep_sequence_dim = keep_sequence_dim
         self.save_output_ids = save_output_ids
@@ -95,11 +89,19 @@ class ImplicitLlamaForCausalLM(PreTrainedModel, EmbeddingMixin, GenerationMixin)
         self.tokenizer = tokenizer
 
         self.apply(self._init_weights)
+        self.post_init()
 
-    def tie_weights(self):
-        if self.tie_embeddings:
-            assert isinstance(self.criterion, PartialCrossEntropyHead), "Criterion is not PartialCrossEntropyHead"
-            self.criterion.tie_weights(self.word_emb)
+    def get_input_embeddings(self):
+        return self.word_emb
+
+    def set_input_embeddings(self, value):
+        self.word_emb = value
+
+    def get_output_embeddings(self):
+        return self.criterion.decoder
+
+    def set_output_embeddings(self, value):
+        self.criterion.decoder = value
 
     def create_config_attributes(self):
         return ModelConfig(

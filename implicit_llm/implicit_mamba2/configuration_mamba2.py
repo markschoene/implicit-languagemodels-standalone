@@ -67,7 +67,6 @@ class CausalLMConfig:
     tie_embeddings: bool
     pad_vocab: bool
     pad_vocab_size_multiple: int
-    d_embed: int
     emb_init_std: float
     dropout: float
     weight_decay: float

@@ -17,7 +17,6 @@
     "rms_norm": true
   },
   "backbone_type": "explicit",
-  "d_embed": 1024,
   "data_info": {},
   "dataset_name": null,
   "deq_params": {},
