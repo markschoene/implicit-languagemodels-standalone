@@ -19,17 +19,20 @@ def test_num_hidden_layers_matches_backbone(config_path):
     assert config.num_hidden_layers == config.backbone_config["n_layer"]
 
 
-@pytest.mark.parametrize("config_path", CONFIG_PATHS)
-def test_pad_and_eos_differ(config_path):
-    config = AutoConfig.from_pretrained(config_path)
-    assert config.pad_token_id != config.eos_token_id
+@pytest.mark.parametrize("config_cls", ["ImplicitLlamaConfig", "ImplicitMambaConfig"])
+def test_token_ids_default_to_none(config_cls):
+    cls = getattr(implicit_llm, config_cls)
+    config = cls()
+    assert config.eos_token_id is None
+    assert config.pad_token_id is None
 
 
 @pytest.mark.parametrize("config_cls", ["ImplicitLlamaConfig", "ImplicitMambaConfig"])
-def test_eos_token_id_overridable(config_cls):
+def test_token_ids_overridable(config_cls):
     cls = getattr(implicit_llm, config_cls)
-    config = cls(eos_token_id=42)
+    config = cls(eos_token_id=42, pad_token_id=7)
     assert config.eos_token_id == 42
+    assert config.pad_token_id == 7
 
 
 @pytest.mark.parametrize("config_path", CONFIG_PATHS)

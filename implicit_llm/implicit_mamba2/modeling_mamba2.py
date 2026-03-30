@@ -172,6 +172,11 @@ class ImplicitMambaForCausalLM(PreTrainedModel, GenerationMixin):
         """
         # Overwritten -- uses `cache_params` as opposed to `past_key_values`
 
+        if input_ids is not None and input_ids.size(0) != 1:
+            raise ValueError(
+                f"Batch generation is not supported. Expected batch size 1, got {input_ids.size(0)}. "
+                "Generate one sequence at a time."
+            )
         if hasattr(self.backbone, 'eval_config') and self.backbone.eval_config.mode != "sequential":
             raise RuntimeError(
                 "Generation requires sequential evaluation mode. "

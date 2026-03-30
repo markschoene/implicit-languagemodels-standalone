@@ -117,13 +117,18 @@ class ImplicitLlamaForCausalLM(PreTrainedModel, GenerationMixin):
     def simultaneous_evaluation(self) -> None:
         self.backbone.simultaneous_evaluation()
 
-    def prepare_inputs_for_generation(self, *args, **kwargs):
+    def prepare_inputs_for_generation(self, input_ids, *args, **kwargs):
+        if input_ids.size(0) != 1:
+            raise ValueError(
+                f"Batch generation is not supported. Expected batch size 1, got {input_ids.size(0)}. "
+                "Generate one sequence at a time."
+            )
         if hasattr(self.backbone, 'eval_config') and self.backbone.eval_config.mode != "sequential":
             raise RuntimeError(
                 "Generation requires sequential evaluation mode. "
                 "Call model.backbone.sequential_evaluation() before generate()."
             )
-        return super().prepare_inputs_for_generation(*args, **kwargs)
+        return super().prepare_inputs_for_generation(input_ids, *args, **kwargs)
 
     def forward(
         self,
