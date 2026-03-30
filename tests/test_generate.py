@@ -30,7 +30,8 @@ def main(model_type, size, backbone):
 
     # prepare evaluation
     model.eval()
-    model.backbone.sequential_evaluation()
+    if model.config.backbone_type != "explicit":
+        model.backbone.sequential_evaluation()
 
     tokenizer = AutoTokenizer.from_pretrained(model.tokenizer)
 

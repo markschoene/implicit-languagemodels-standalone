@@ -114,6 +114,20 @@ class ImplicitLlamaForCausalLM(PreTrainedModel, GenerationMixin):
             pad_vocab_size_multiple=self.pad_vocab_size_multiple,
         )
 
+    def sequential_evaluation(self):
+        self.backbone.sequential_evaluation()
+
+    def simultaneous_evaluation(self):
+        self.backbone.simultaneous_evaluation()
+
+    def prepare_inputs_for_generation(self, *args, **kwargs):
+        if hasattr(self.backbone, 'eval_config') and self.backbone.eval_config.mode != "sequential":
+            raise RuntimeError(
+                "Generation requires sequential evaluation mode. "
+                "Call model.backbone.sequential_evaluation() before generate()."
+            )
+        return super().prepare_inputs_for_generation(*args, **kwargs)
+
     def forward(
         self,
         input_ids: LongTensor | None = None,

@@ -129,7 +129,13 @@ class ImplicitLlamaConfig(PretrainedConfig):
         self.save_output_ids = save_output_ids
         self.tokenizer = "EleutherAI/gpt-neox-20b"
 
+        kwargs.setdefault('eos_token_id', 0)
+        kwargs.setdefault('pad_token_id', 1)
         super().__init__(**kwargs)
+
+    @property
+    def num_hidden_layers(self):
+        return self.backbone_config.get('n_layer', 1)
 
 
 if __name__ == "__main__":
