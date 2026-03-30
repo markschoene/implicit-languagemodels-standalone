@@ -357,6 +357,7 @@ class ImplicitMambaForCausalLM(PreTrainedModel, GenerationMixin):
         state_dict = load_checkpoint(pretrained_model_name_or_path)
 
         missing_keys, unexpected_keys = model.load_state_dict(state_dict, strict=False)
+        missing_keys = [k for k in missing_keys if k not in cls._tied_weights_keys]
         if missing_keys:
             print(f"Warning: Some keys are missing in the state_dict: {missing_keys}")
         if unexpected_keys:
