@@ -220,7 +220,6 @@ class ImplicitModel(BaseModel, ImplicitMixin):
         dropout: float = 0.0,
         init_gain: float = 0.5,
         initializer_cfg: Optional[Dict[str, Any]] = None,
-        ema_alpha: float | None = None,
         norm_epsilon: float = 1e-5,
         residual_in_fp32: bool = True,
         do_weight_norm: bool = True,
