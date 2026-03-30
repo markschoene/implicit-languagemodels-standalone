@@ -1,7 +1,4 @@
-import math
-import os
-from dataclasses import dataclass, field
-from functools import partial
+from dataclasses import dataclass
 from typing import Dict, Optional, Tuple, Union
 
 import torch
@@ -119,19 +116,19 @@ class ImplicitMambaForCausalLM(PreTrainedModel, GenerationMixin):
         self.apply(self._init_weights)
         self.post_init()
 
-    def get_input_embeddings(self):
+    def get_input_embeddings(self) -> nn.Embedding:
         return self.word_emb
 
-    def set_input_embeddings(self, value):
+    def set_input_embeddings(self, value: nn.Embedding) -> None:
         self.word_emb = value
 
-    def get_output_embeddings(self):
+    def get_output_embeddings(self) -> nn.Linear:
         return self.criterion.decoder
 
-    def set_output_embeddings(self, value):
+    def set_output_embeddings(self, value: nn.Linear) -> None:
         self.criterion.decoder = value
 
-    def create_config_attributes(self):
+    def create_config_attributes(self) -> ModelConfig:
         return ModelConfig(
             d_model=self.backbone.d_model,
             d_intermediate=self.backbone.d_inner,
@@ -142,16 +139,16 @@ class ImplicitMambaForCausalLM(PreTrainedModel, GenerationMixin):
             pad_vocab_size_multiple=self.pad_vocab_size_multiple,
         )
 
-    def set_exp2implicit(self):
+    def set_exp2implicit(self) -> None:
         self.backbone.set_exp2implicit()
 
-    def update_deq(self, deq_params):
+    def update_deq(self, deq_params: dict) -> None:
         self.backbone.update_deq(deq_params)
 
-    def sequential_evaluation(self):
+    def sequential_evaluation(self) -> None:
         self.backbone.sequential_evaluation()
 
-    def simultaneous_evaluation(self):
+    def simultaneous_evaluation(self) -> None:
         self.backbone.simultaneous_evaluation()
 
     def keep_per_bacth_metrics(self, loss: torch.Tensor, logits: torch.Tensor):
@@ -233,7 +230,7 @@ class ImplicitMambaForCausalLM(PreTrainedModel, GenerationMixin):
         cache_position: Optional[torch.LongTensor] = None,
         logits_to_keep: Union[int, torch.Tensor] = 0,
         **kwargs,
-    ) -> Tuple[Tensor, Dict, Tensor]:
+    ) -> tuple[Tensor, ...] | ImplicitCausalLMOutputWithPast:
         # kwargs validation for our models
         assert output_hidden_states is False, "output_hidden_states is not supported"
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
@@ -322,9 +319,9 @@ class ImplicitMambaForCausalLM(PreTrainedModel, GenerationMixin):
     @classmethod
     def from_config(
         cls,
-        pretrained_model_name: Union[str, ImplicitMambaConfig],
-        device=None,
-        dtype=None,
+        pretrained_model_name: str | ImplicitMambaConfig,
+        device: torch.device | str | None = None,
+        dtype: torch.dtype | None = None,
         **kwargs,
     ) -> "ImplicitMambaForCausalLM":
 

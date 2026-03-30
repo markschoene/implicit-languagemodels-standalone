@@ -11,7 +11,7 @@ if is_liger_kernel_available():
     from liger_kernel.transformers import AutoLigerKernelForCausalLM
 
 
-def register_implicit_causal_lm():
+def register_implicit_causal_lm() -> None:
     """
     Register the 'implicit_causal_lm' model locally to AutoModel, AutoModelForCausalLM, and AutoConfig.
     This allows the use of AutoModel.from_pretrained() with the implicit models.
