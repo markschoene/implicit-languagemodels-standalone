@@ -1,67 +1,54 @@
-import argparse
-
+import pytest
 import torch
-from transformers import AutoModel
 
-import implicit_llm
 from implicit_llm import sequential_forward
-
-torch.manual_seed(0)
-
-
-def simulataneous_forward(model, input_ids):
-    """
-    Perform a simultaneous forward pass through the model.
-    """
-    model.eval()
-    with torch.no_grad():
-        out = model(input_ids=input_ids, use_cache=False)
-    return out.logits
+from tests.conftest import make_model, requires_cuda
 
 
-def test_evaluation(model, input_ids):
-    # run model in sequential and simultaneous modes
-    out_sim = simulataneous_forward(model, input_ids=input_ids)
-    out_seq = sequential_forward(model, input_ids).logits
-
-    # decode sequences
-    dec_sim = out_sim.argmax(-1)
-    dec_seq = out_seq.argmax(-1)
-    print(f"Greedy decoded sequence (simultaneous):\n{dec_sim.detach().cpu().numpy()}")
-    print(f"Greedy decoded sequence (sequential):\n{dec_seq.detach().cpu().numpy()}")
+BACKBONES = ["llama3", pytest.param("mamba2", marks=requires_cuda)]
 
 
-def prepare_model(model, device, precision):
-    """
-    Prepare the model for evaluation by moving it to the specified device and setting the precision.
-    """
-    model = model.to(device, precision)
-    if hasattr(model, "backbone") and model.config.backbone_type == "implicit":
-        model.backbone.pretrain = False
-        model.backbone.tau = 0.8
-    return model
+@pytest.fixture(params=BACKBONES)
+def implicit_model(request, device):
+    return make_model(request.param, "implicit", device)
 
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Test model evaluation")
-    parser.add_argument("--batch_size", type=int, default=1, help="Batch size for evaluation")
-    parser.add_argument("--model_name", type=str, required=True, help="Path to model")
+@pytest.fixture(params=BACKBONES)
+def explicit_model(request, device):
+    return make_model(request.param, "explicit", device)
 
-    args = parser.parse_args()
-    batch_size = args.batch_size
 
-    model = AutoModel.from_pretrained(args.model_name)
+class TestSimultaneousEvaluation:
+    def test_simultaneous_logits_shape(self, implicit_model, random_input_ids):
+        """Simultaneous forward produces logits of shape (B, L, V)."""
+        with torch.no_grad():
+            out = implicit_model(input_ids=random_input_ids, use_cache=False)
+        B, L = random_input_ids.shape
+        assert out.logits.shape[:2] == (B, L)
+        assert out.logits.shape[2] >= implicit_model.config.vocab_size
 
-    device = "cuda"
-    precision = torch.float32
 
-    model = prepare_model(model, device, precision)
+class TestSequentialForward:
+    def test_sequential_forward_logits_shape(self, implicit_model, random_input_ids):
+        """sequential_forward() returns logits of correct shape."""
+        out = sequential_forward(implicit_model, random_input_ids)
+        B, L = random_input_ids.shape
+        assert out.logits.shape[:2] == (B, L)
+        assert out.logits.shape[2] >= implicit_model.config.vocab_size
 
-    input_ids = torch.randint(0, 240, (args.batch_size, 16)).to(device)
+    def test_sequential_forward_returns_metrics(self, implicit_model, random_input_ids):
+        """sequential_forward() returns implicit_metrics with convergence info."""
+        out = sequential_forward(implicit_model, random_input_ids)
+        assert out.implicit_metrics is not None
+        for key in ["abs diff", "rel diff", "steps"]:
+            assert key in out.implicit_metrics
 
-    print(40 * "=")
-    print(f"Testing model {args.model_name}:")
-    print(f"Model class: {model.__class__.__name__}")
-    print(40 * "=")
 
-    test_evaluation(model, input_ids)
+class TestExplicitModelForward:
+    def test_explicit_model_forward_shape(self, explicit_model, random_input_ids):
+        """Explicit model forward returns correct logits shape without eval mode."""
+        with torch.no_grad():
+            out = explicit_model(input_ids=random_input_ids, use_cache=False)
+        B, L = random_input_ids.shape
+        assert out.logits.shape[:2] == (B, L)
+        assert out.logits.shape[2] >= explicit_model.config.vocab_size
