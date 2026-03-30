@@ -16,14 +16,12 @@ class PartialCrossEntropyHead(nn.Module):
         self,
         vocab_size: int,
         d_model: int,
-        tokenizer=None,
         head_bias: bool = False,
         ignore_index: int = -100,
     ):
         super(PartialCrossEntropyHead, self).__init__()
         self.d_model = d_model
         self.vocab_size = vocab_size
-        self.tokenizer = tokenizer
 
         # this attribute is called by the lightning module to distinguish the computation of accuracies
         self.accuracy = True

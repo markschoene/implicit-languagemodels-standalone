@@ -136,8 +136,6 @@ class ImplicitMambaConfig(PretrainedConfig):
         self.keep_sequence_dim = keep_sequence_dim
         self.save_output_ids = save_output_ids
 
-        self.tokenizer = "EleutherAI/gpt-neox-20b"
-
         kwargs.setdefault('eos_token_id', 0)
         kwargs.setdefault('pad_token_id', 1)
         super().__init__(**kwargs)
