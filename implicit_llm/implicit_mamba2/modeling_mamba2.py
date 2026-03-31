@@ -68,7 +68,6 @@ class ImplicitMambaForCausalLM(PreTrainedModel, GenerationMixin):
         head_bias: bool = config.head_bias
         dropout: float = config.dropout
         weight_decay: float = config.weight_decay
-        tokenizer: nn.Module = config.tokenizer
         pad_vocab: bool = config.pad_vocab
         pad_vocab_size_multiple: int = config.pad_vocab_size_multiple
         tie_embeddings: bool = config.tie_embeddings
@@ -94,7 +93,6 @@ class ImplicitMambaForCausalLM(PreTrainedModel, GenerationMixin):
         self.criterion = PartialCrossEntropyHead(
             vocab_size=n_tokens,
             d_model=d_model,
-            tokenizer=tokenizer,
             head_bias=head_bias,
         )
         self.emb_init_std = emb_init_std
@@ -110,7 +108,6 @@ class ImplicitMambaForCausalLM(PreTrainedModel, GenerationMixin):
         self.pad_vocab = pad_vocab
         self.pad_vocab_size_multiple = pad_vocab_size_multiple
         self.config_attr = self.create_config_attributes()
-        self.tokenizer = tokenizer
         self.load_from_pretrained_shell = load_from_pretrained_shell
 
         self.apply(self._init_weights)
@@ -175,6 +172,11 @@ class ImplicitMambaForCausalLM(PreTrainedModel, GenerationMixin):
         """
         # Overwritten -- uses `cache_params` as opposed to `past_key_values`
 
+        if input_ids is not None and input_ids.size(0) != 1:
+            raise ValueError(
+                f"Batch generation is not supported. Expected batch size 1, got {input_ids.size(0)}. "
+                "Generate one sequence at a time."
+            )
         if hasattr(self.backbone, 'eval_config') and self.backbone.eval_config.mode != "sequential":
             raise RuntimeError(
                 "Generation requires sequential evaluation mode. "

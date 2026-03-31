@@ -49,3 +49,10 @@ class TestGenerate:
             )
         assert (out >= 0).all()
         assert (out < generation_model.config.vocab_size).all()
+
+    def test_batch_generation_raises(self, generation_model):
+        input_ids = torch.randint(0, 240, (2, 8)).to(next(generation_model.parameters()).device)
+        with pytest.raises(ValueError, match="Batch generation is not supported"):
+            generation_model.generate(
+                input_ids, max_length=input_ids.shape[1] + 5, do_sample=False
+            )

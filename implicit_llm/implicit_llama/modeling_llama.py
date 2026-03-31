@@ -45,7 +45,6 @@ class ImplicitLlamaForCausalLM(PreTrainedModel, GenerationMixin):
         head_bias: bool = config.head_bias
         dropout: float = config.dropout
         weight_decay: float = config.weight_decay
-        tokenizer: nn.Module = config.tokenizer
         pad_vocab: bool = config.pad_vocab
         pad_vocab_size_multiple: int = config.pad_vocab_size_multiple
         tie_embeddings: bool = config.tie_embeddings
@@ -70,7 +69,6 @@ class ImplicitLlamaForCausalLM(PreTrainedModel, GenerationMixin):
         self.criterion = PartialCrossEntropyHead(
             vocab_size=vocab_size,
             d_model=d_model,
-            tokenizer=tokenizer,
             head_bias=head_bias,
         )
         self.emb_init_std = emb_init_std
@@ -86,7 +84,6 @@ class ImplicitLlamaForCausalLM(PreTrainedModel, GenerationMixin):
         self.pad_vocab = pad_vocab
         self.pad_vocab_size_multiple = pad_vocab_size_multiple
         self.config_attr = self.create_config_attributes()
-        self.tokenizer = tokenizer
 
         self.apply(self._init_weights)
         self.post_init()
@@ -120,13 +117,18 @@ class ImplicitLlamaForCausalLM(PreTrainedModel, GenerationMixin):
     def simultaneous_evaluation(self) -> None:
         self.backbone.simultaneous_evaluation()
 
-    def prepare_inputs_for_generation(self, *args, **kwargs):
+    def prepare_inputs_for_generation(self, input_ids, *args, **kwargs):
+        if input_ids.size(0) != 1:
+            raise ValueError(
+                f"Batch generation is not supported. Expected batch size 1, got {input_ids.size(0)}. "
+                "Generate one sequence at a time."
+            )
         if hasattr(self.backbone, 'eval_config') and self.backbone.eval_config.mode != "sequential":
             raise RuntimeError(
                 "Generation requires sequential evaluation mode. "
                 "Call model.backbone.sequential_evaluation() before generate()."
             )
-        return super().prepare_inputs_for_generation(*args, **kwargs)
+        return super().prepare_inputs_for_generation(input_ids, *args, **kwargs)
 
     def forward(
         self,

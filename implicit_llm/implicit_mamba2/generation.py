@@ -35,6 +35,11 @@ class GenerationMixin:
             generated: Generated tokens (B, L) in integer format
             inference_cache: Updated inference cache
         """
+        if prompt.size(0) != 1:
+            raise ValueError(
+                f"Batch generation is not supported. Expected batch size 1, got {prompt.size(0)}. "
+                "Generate one sequence at a time."
+            )
         # make sure we are in evaluation mode
         self.eval()
 
