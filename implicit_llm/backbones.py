@@ -62,8 +62,8 @@ class BaseModel(nn.Module):
         mlp_type: str = "gated_mlp",
         norm_epsilon: float = 1e-5,
         residual_in_fp32: bool = True,
-        device=None,
-        dtype=None,
+        device: torch.device | str | None = None,
+        dtype: torch.dtype | None = None,
     ):
         factory_kwargs = {"device": device, "dtype": dtype}
         super().__init__()
@@ -207,7 +207,7 @@ class ImplicitModel(BaseModel, ImplicitMixin):
 
     def __init__(
         self,
-        deq_params,
+        deq_params: dict,
         d_model: int,
         n_layer: int,
         d_inner: int,
@@ -220,11 +220,10 @@ class ImplicitModel(BaseModel, ImplicitMixin):
         dropout: float = 0.0,
         init_gain: float = 0.5,
         initializer_cfg: Optional[Dict[str, Any]] = None,
-        ema_alpha=None,
         norm_epsilon: float = 1e-5,
         residual_in_fp32: bool = True,
         do_weight_norm: bool = True,
-        init_z_mode: str = None,
+        init_z_mode: str | None = None,
         **kwargs,
     ):
         super().__init__(

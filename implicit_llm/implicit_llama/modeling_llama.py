@@ -91,19 +91,19 @@ class ImplicitLlamaForCausalLM(PreTrainedModel, GenerationMixin):
         self.apply(self._init_weights)
         self.post_init()
 
-    def get_input_embeddings(self):
+    def get_input_embeddings(self) -> nn.Embedding:
         return self.word_emb
 
-    def set_input_embeddings(self, value):
+    def set_input_embeddings(self, value: nn.Embedding) -> None:
         self.word_emb = value
 
-    def get_output_embeddings(self):
+    def get_output_embeddings(self) -> nn.Linear:
         return self.criterion.decoder
 
-    def set_output_embeddings(self, value):
+    def set_output_embeddings(self, value: nn.Linear) -> None:
         self.criterion.decoder = value
 
-    def create_config_attributes(self):
+    def create_config_attributes(self) -> ModelConfig:
         return ModelConfig(
             d_model=self.backbone.d_model,
             d_intermediate=self.backbone.d_inner,
@@ -114,10 +114,10 @@ class ImplicitLlamaForCausalLM(PreTrainedModel, GenerationMixin):
             pad_vocab_size_multiple=self.pad_vocab_size_multiple,
         )
 
-    def sequential_evaluation(self):
+    def sequential_evaluation(self) -> None:
         self.backbone.sequential_evaluation()
 
-    def simultaneous_evaluation(self):
+    def simultaneous_evaluation(self) -> None:
         self.backbone.simultaneous_evaluation()
 
     def prepare_inputs_for_generation(self, *args, **kwargs):
@@ -363,10 +363,10 @@ class ImplicitLlamaForCausalLM(PreTrainedModel, GenerationMixin):
     def from_config(
         cls,
         pretrained_model_name: str | ImplicitLlamaConfig,
-        device=None,
-        dtype=None,
+        device: torch.device | str | None = None,
+        dtype: torch.dtype | None = None,
         **kwargs,
-    ):
+    ) -> "ImplicitLlamaForCausalLM":
         if isinstance(pretrained_model_name, str):
             config = ImplicitLlamaConfig.from_pretrained(pretrained_model_name)
         elif isinstance(pretrained_model_name, ImplicitLlamaConfig):
@@ -378,7 +378,7 @@ class ImplicitLlamaForCausalLM(PreTrainedModel, GenerationMixin):
         return model
 
     @classmethod
-    def from_pretrained(cls, pretrained_model_name_or_path: str, *model_args, **kwargs):
+    def from_pretrained(cls, pretrained_model_name_or_path: str, *model_args, **kwargs) -> "ImplicitLlamaForCausalLM":
         """
         Loads the model from a given directory (which must contain a config file and pytorch_model.bin).
         Extra keyword arguments will be passed to AutoConfig.from_pretrained and the model constructor.

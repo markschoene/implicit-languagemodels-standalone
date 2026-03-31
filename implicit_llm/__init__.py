@@ -6,4 +6,14 @@ from .evaluation import EvaluationConfig
 from .register_models import register_implicit_causal_lm
 from .sequential import sequential_forward
 
+__all__ = [
+    "ImplicitLlamaConfig",
+    "ImplicitLlamaForCausalLM",
+    "ImplicitMambaConfig",
+    "ImplicitMambaForCausalLM",
+    "EvaluationConfig",
+    "register_implicit_causal_lm",
+    "sequential_forward",
+]
+
 register_implicit_causal_lm()

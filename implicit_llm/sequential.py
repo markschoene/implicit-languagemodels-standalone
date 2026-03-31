@@ -9,7 +9,10 @@ from .implicit_mamba2.modeling_mamba2 import (
 )
 
 
-def sequential_forward(model, input_ids):
+def sequential_forward(
+    model: ImplicitLlamaForCausalLM | ImplicitMambaForCausalLM,
+    input_ids: torch.LongTensor,
+) -> ImplicitCausalLMOutputWithPastLlama | ImplicitCausalLMOutputWithPastMamba:
     """
     Helper function to sequentially step though a sequence and compute logits for each token.
     """
@@ -24,7 +27,9 @@ def sequential_forward(model, input_ids):
     return output
 
 
-def sequential_forward_mamba(model, input_ids):
+def sequential_forward_mamba(
+    model: ImplicitMambaForCausalLM, input_ids: torch.LongTensor,
+) -> ImplicitCausalLMOutputWithPastMamba:
     """
     Perform a sequential forward pass with a Mamba state-space model.
     """
@@ -74,7 +79,9 @@ def sequential_forward_mamba(model, input_ids):
     return output
 
 
-def sequential_forward_llama(model, input_ids):
+def sequential_forward_llama(
+    model: ImplicitLlamaForCausalLM, input_ids: torch.LongTensor,
+) -> ImplicitCausalLMOutputWithPastLlama:
     """
     Perform a sequential forward pass with a Llama transformer model.
     """
