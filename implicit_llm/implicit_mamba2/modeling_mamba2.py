@@ -10,6 +10,7 @@ from transformers.modeling_outputs import CausalLMOutputWithPast
 from transformers.utils import ModelOutput
 
 from ..backbones import ExplicitModel, ImplicitModel, ModelConfig
+from ..evaluation import EvaluationConfig
 from ..modules.heads import PartialCrossEntropyHead
 from ..modules.mamba2 import Mamba2Cache
 from ..utils import load_checkpoint
@@ -56,6 +57,7 @@ class ImplicitMambaForCausalLM(PreTrainedModel, GenerationMixin):
     config_class = ImplicitMambaConfig
     _tied_weights_keys = ["criterion.decoder.weight"]
     _is_stateful = True
+    backbone: ExplicitModel | ImplicitModel
 
     def __init__(
         self,
@@ -147,6 +149,10 @@ class ImplicitMambaForCausalLM(PreTrainedModel, GenerationMixin):
 
     def simultaneous_evaluation(self) -> None:
         self.backbone.simultaneous_evaluation()
+
+    def set_eval_config(self, config: EvaluationConfig) -> None:
+        if isinstance(self.backbone, ImplicitModel):
+            self.backbone.set_eval_config(config)
 
     def keep_per_bacth_metrics(self, loss: torch.Tensor, logits: torch.Tensor):
         if self.keep_sequence_dim:

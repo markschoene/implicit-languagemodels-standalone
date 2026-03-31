@@ -14,6 +14,7 @@ from transformers.modeling_attn_mask_utils import AttentionMaskConverter
 from transformers.modeling_outputs import CausalLMOutputWithPast
 
 from ..backbones import ExplicitModel, ImplicitModel, ModelConfig
+from ..evaluation import EvaluationConfig
 from ..modules.heads import PartialCrossEntropyHead
 from ..utils import load_checkpoint
 from .configuration_llama import ImplicitLlamaConfig
@@ -33,6 +34,7 @@ class ImplicitLlamaForCausalLM(PreTrainedModel, GenerationMixin):
     config_class = ImplicitLlamaConfig
     _supports_sdpa = True
     _tied_weights_keys = ["criterion.decoder.weight"]
+    backbone: ExplicitModel | ImplicitModel
 
     def __init__(
         self,
@@ -116,6 +118,10 @@ class ImplicitLlamaForCausalLM(PreTrainedModel, GenerationMixin):
 
     def simultaneous_evaluation(self) -> None:
         self.backbone.simultaneous_evaluation()
+
+    def set_eval_config(self, config: EvaluationConfig) -> None:
+        if isinstance(self.backbone, ImplicitModel):
+            self.backbone.set_eval_config(config)
 
     def prepare_inputs_for_generation(self, input_ids, *args, **kwargs):
         if input_ids.size(0) != 1:

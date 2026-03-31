@@ -34,6 +34,10 @@ class ImplicitMixin(nn.Module):
         """Switch to simultaneous (parallel) evaluation mode."""
         self.eval_config.mode = "simultaneous"
 
+    def set_eval_config(self, config: EvaluationConfig) -> None:
+        """Replace the evaluation config."""
+        self.eval_config = config
+
     def convergence_warning(self, idx, diff, steps):
         if steps >= self._eval_max_iter - 1:
             print(
