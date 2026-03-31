@@ -1,48 +1,51 @@
+import pytest
 import torch
-from transformers import AutoModel, AutoTokenizer
 
-import implicit_llm
-
-prompt = "What is the capital of France? The"
+from tests.conftest import make_model, requires_cuda
 
 
-def test_generate(model, tokenizer, prompt):
-    inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
-
-    # Generate text using the model
-    with torch.no_grad():
-        outputs = model.generate(
-            inputs.input_ids,
-            max_length=inputs.input_ids.shape[1] + 10,
-            do_sample=False,
-            pad_token_id=model.config.eos_token_id,
-        )
-
-    # Decode the generated tokens
-    generated_text = tokenizer.decode(outputs[0], skip_special_tokens=True)
-    return generated_text
+GENERATION_MODELS = [
+    pytest.param(("mamba2", "explicit"), marks=requires_cuda),
+    pytest.param(("mamba2", "implicit"), marks=requires_cuda),
+    ("llama3", "explicit"),
+    ("llama3", "implicit"),
+]
 
 
-def main(model_type, size, backbone):
-    model_name = f"hf_models/{backbone}-{size}-{model_type}"
-    model = AutoModel.from_pretrained(model_name)
-    model = model.to("cuda")
-
-    # prepare evaluation
-    model.eval()
-    model.backbone.sequential_evaluation()
-
-    tokenizer = AutoTokenizer.from_pretrained(model.tokenizer)
-
-    text = test_generate(model, tokenizer, prompt)
-    print(40 * "=")
-    print(f"Model: {model_name}")
-    print(40 * "=")
-    print(text)
+@pytest.fixture(params=GENERATION_MODELS)
+def generation_model(request, device):
+    backbone, model_type = request.param
+    model = make_model(backbone, model_type, device)
+    if model_type != "explicit":
+        model.backbone.sequential_evaluation()
+    return model
 
 
-if __name__ == "__main__":
-    for size in ["130m", "370m", "760m", "1.3b"]:
-        for model_type in ["explicit", "pretrain", "implicit"]:
-            for backbone in ["mamba2", "llama3"]:
-                main(model_type, size, backbone)
+class TestGenerate:
+    def test_generate_extends_sequence(self, generation_model):
+        input_ids = torch.randint(0, 240, (1, 8)).to(next(generation_model.parameters()).device)
+        with torch.no_grad():
+            out = generation_model.generate(
+                input_ids, max_length=input_ids.shape[1] + 5, do_sample=False
+            )
+        assert out.shape[1] > input_ids.shape[1]
+
+    def test_generate_greedy_is_deterministic(self, generation_model):
+        input_ids = torch.randint(0, 240, (1, 8)).to(next(generation_model.parameters()).device)
+        with torch.no_grad():
+            out1 = generation_model.generate(
+                input_ids, max_length=input_ids.shape[1] + 5, do_sample=False
+            )
+            out2 = generation_model.generate(
+                input_ids, max_length=input_ids.shape[1] + 5, do_sample=False
+            )
+        assert torch.equal(out1, out2)
+
+    def test_generate_tokens_in_vocab_range(self, generation_model):
+        input_ids = torch.randint(0, 240, (1, 8)).to(next(generation_model.parameters()).device)
+        with torch.no_grad():
+            out = generation_model.generate(
+                input_ids, max_length=input_ids.shape[1] + 5, do_sample=False
+            )
+        assert (out >= 0).all()
+        assert (out < generation_model.config.vocab_size).all()

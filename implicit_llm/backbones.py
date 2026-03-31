@@ -183,9 +183,6 @@ class ExplicitModel(BaseModel):
             )
         )
 
-    def simultaneous_evaluation(self):
-        self.sequential_eval = False
-
     def forward(self, hidden_states: Tensor, mixer_kwargs: Dict) -> BaseModelOutputWithPast:
         reset_dropout(self)
 
@@ -299,8 +296,8 @@ class ImplicitModel(BaseModel, ImplicitMixin):
         self.pretrain_iter = pretrain_iter
         self.pretrain_counter = 0
 
-        # sequential eval under noise with moving average
-        self.ema_alpha = ema_alpha
+        # initialize evaluation config
+        self._init_eval_config()
 
     @contextmanager
     def spectral_radius_mode(self, enabled=True):

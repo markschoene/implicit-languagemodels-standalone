@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "implicit_llm"
-version = "0.1.0"
+version = "0.2.0"
 authors = [
   { name="Mark Schoene", email="mark.schoene@tu-dresden.de" },
   { name="Babak Rahmani", email="t-brahmani@microsoft.com" },
@@ -24,6 +24,7 @@ dependencies = [
     "hydra-core",
     "matplotlib",
     "triton",
+    "pytest>=7",
 ]
 classifiers = [
     "Programming Language :: Python :: 3",
@@ -37,6 +38,9 @@ keywords = ["mamba", "llama", "deep learning", "transformers", "language model",
 Homepage = "https://github.com/microsoft/implicit_languagemodels"
 Issues = "https://github.com/microsoft/implicit_languagemodels/issues"
 
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
 
 [tool.hatch.build.targets.wheel]  # what gets copied into the wheel
 packages = [

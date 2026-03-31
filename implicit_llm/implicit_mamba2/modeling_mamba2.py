@@ -58,6 +58,7 @@ class ImplicitMambaForCausalLM(PreTrainedModel, GenerationMixin):
 
     config_class = ImplicitMambaConfig
     _tied_weights_keys = ["criterion.decoder.weight"]
+    _is_stateful = True
 
     def __init__(
         self,
@@ -147,10 +148,10 @@ class ImplicitMambaForCausalLM(PreTrainedModel, GenerationMixin):
     def update_deq(self, deq_params):
         self.backbone.update_deq(deq_params)
 
-    def sequential_evaluation(self, tau=1.0):  #  remove
-        self.backbone.sequential_evaluation(tau)
+    def sequential_evaluation(self):
+        self.backbone.sequential_evaluation()
 
-    def simultaneous_evaluation(self):  #  remove
+    def simultaneous_evaluation(self):
         self.backbone.simultaneous_evaluation()
 
     def keep_per_bacth_metrics(self, loss: torch.Tensor, logits: torch.Tensor):
@@ -176,6 +177,12 @@ class ImplicitMambaForCausalLM(PreTrainedModel, GenerationMixin):
         transformers/models/mamba/modeling_mamba.py
         """
         # Overwritten -- uses `cache_params` as opposed to `past_key_values`
+
+        if hasattr(self.backbone, 'eval_config') and self.backbone.eval_config.mode != "sequential":
+            raise RuntimeError(
+                "Generation requires sequential evaluation mode. "
+                "Call model.backbone.sequential_evaluation() before generate()."
+            )
 
         if use_cache:
             # `cache_position` should have been initialized in `generate`
@@ -350,6 +357,7 @@ class ImplicitMambaForCausalLM(PreTrainedModel, GenerationMixin):
         state_dict = load_checkpoint(pretrained_model_name_or_path)
 
         missing_keys, unexpected_keys = model.load_state_dict(state_dict, strict=False)
+        missing_keys = [k for k in missing_keys if k not in cls._tied_weights_keys]
         if missing_keys:
             print(f"Warning: Some keys are missing in the state_dict: {missing_keys}")
         if unexpected_keys:

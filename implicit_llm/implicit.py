@@ -2,7 +2,9 @@ from functools import partial
 
 import torch
 from torch import Tensor, nn
-from .solver import reset_deq, jac_reg
+
+from .evaluation import EvaluationConfig
+from .solver import reset_deq, jac_reg, _spectral_radius
 
 
 class ImplicitMixin(nn.Module):
@@ -20,11 +22,44 @@ class ImplicitMixin(nn.Module):
         - self.pretrain_counter: counter for pretraining steps
     """
 
+    def _init_eval_config(self):
+        """Initialize the evaluation config with defaults from DEQ params."""
+        self.eval_config = EvaluationConfig()
+
+    def sequential_evaluation(self):
+        """Switch to sequential (token-by-token) evaluation mode."""
+        self.eval_config.mode = "sequential"
+
+    def simultaneous_evaluation(self):
+        """Switch to simultaneous (parallel) evaluation mode."""
+        self.eval_config.mode = "simultaneous"
+
     def convergence_warning(self, idx, diff, steps):
-        if steps >= self.f_thres - 1:
+        if steps >= self._eval_max_iter - 1:
             print(
                     f"Token {idx:4d} Warning: DEQ did not converge with rel diff {diff:.3f} after {steps} steps", "red"
             )
+
+    @property
+    def _eval_max_iter(self) -> int:
+        """Effective max iterations for eval, respecting EvaluationConfig overrides."""
+        if self.eval_config.max_iter is not None:
+            return self.eval_config.max_iter
+        return self.f_thres
+
+    @property
+    def _eval_tol(self) -> float:
+        """Effective convergence tolerance for eval, respecting EvaluationConfig overrides."""
+        if self.eval_config.tol is not None:
+            return self.eval_config.tol
+        return self.f_tol
+
+    @property
+    def _eval_momentum(self) -> float:
+        """Effective momentum for eval, respecting EvaluationConfig overrides."""
+        if self.eval_config.momentum is not None:
+            return self.eval_config.momentum
+        return self.beta
 
     def is_pretraining(self):
         if self.pretrain and self.pretrain_counter < self.pretrain_steps:
@@ -72,12 +107,17 @@ class ImplicitMixin(nn.Module):
 
         # compute the DEQ output
         if self.training:
+            # training always uses simultaneous mode (or pretrain)
             if self.is_pretraining():
                 output, log_dict = self._weighttied_parallel_forward(injected_states, zs, n_iter=self.pretrain_iter, mixer_kwargs=mixer_kwargs)
             else:
                 output, log_dict = self._simultaneous_forward(injected_states, zs, mixer_kwargs)
         else:
-            output, log_dict = self._sequential_forward(injected_states, zs, mixer_kwargs)
+            # eval mode: branch on eval_config
+            if self.eval_config.mode == "sequential":
+                output, log_dict = self._sequential_forward(injected_states, zs, mixer_kwargs)
+            else:
+                output, log_dict = self._simultaneous_forward(injected_states, zs, mixer_kwargs)
 
         # compute the Jacobian regularization loss
         # torch runs into issues when trying to compute gradients while in eval mode due to torch.no_grad()
@@ -114,10 +154,10 @@ class ImplicitMixin(nn.Module):
         return zs, log_dict
 
     def _simultaneous_forward(self, x: Tensor, zs: Tensor, mixer_kwargs: dict) -> tuple[Tensor, dict]:
-        # run the DEQ
+        sradius_mode = self.eval_config.spectral_radius if not self.training else self.sradius_mode
 
         func_to_use = partial(self.func, u=x, mixer_kwargs=mixer_kwargs)
-        z_out, info = self.deq(func_to_use, zs, sradius_mode=self.sradius_mode)
+        z_out, info = self.deq(func_to_use, zs, sradius_mode=sradius_mode)
 
         output = z_out[-1]
 
@@ -126,7 +166,7 @@ class ImplicitMixin(nn.Module):
             "rel diff": info["rel_lowest"].mean(),
             "steps": info["nstep"].mean(),
         }
-        if not self.training and self.sradius_mode:
+        if not self.training and sradius_mode:
             log_dict["spectral radius"] = info["sradius"].mean().to(output)
 
         return output, log_dict
@@ -150,36 +190,33 @@ class ImplicitMixin(nn.Module):
 
         def absolute_diff(a, b) -> Tensor:
             return torch.norm(b - a)
+
+        max_iter = self._eval_max_iter
+        f_tol = self._eval_tol
+        momentum = self._eval_momentum
+
         # For the iterative loop, disable kv updates.
         mixer_kwargs["skip_kv_update"] = True
 
-        moving_average = z
         diff_abs = torch.tensor(1e9, device=z.device)
         diff_rel = torch.tensor(1e9, device=z.device)
 
-        for count in range(self.f_thres - 1):
+        for count in range(max_iter - 1):
 
             z_next = self.func(z, u, mixer_kwargs)
-            if self.ema_alpha:
-                moving_average_next = (1 - self.ema_alpha) * moving_average + self.ema_alpha * z_next
-                diff_rel = relative_diff(moving_average, moving_average_next)
-                diff_abs = absolute_diff(moving_average, moving_average_next)
-                moving_average = moving_average_next
-            else:
-                diff_rel = relative_diff(z, z_next)
-                diff_abs = absolute_diff(z, z_next)
-            # Optionally update state with momentum (tau).
-            z = (1 - self.beta) * z + self.beta * z_next
+            diff_rel = relative_diff(z, z_next)
+            diff_abs = absolute_diff(z, z_next)
+            # update state with momentum
+            z = (1 - momentum) * z + momentum * z_next
 
             # Use a lenient tolerance for the first token.
-            f_tol = 0.2 if is_first_token else self.f_tol
-            if diff_rel < f_tol:
+            tol = 0.2 if is_first_token else f_tol
+            if diff_rel < tol:
                 break
 
         # Re-enable key/value updates for the final call.
         mixer_kwargs["skip_kv_update"] = False
-        final_input = moving_average if self.ema_alpha else z
-        final_output = self.func(final_input, u, mixer_kwargs)
+        final_output = self.func(z, u, mixer_kwargs)
 
         steps = torch.tensor(count + 1, dtype=torch.float32, device=z.device)
         log_dict = {
@@ -187,6 +224,15 @@ class ImplicitMixin(nn.Module):
             "rel diff": diff_rel,
             "steps": steps,
         }
+
+        # compute spectral radius if requested
+        if self.eval_config.spectral_radius:
+            mixer_kwargs["skip_kv_update"] = True
+            func_for_sradius = partial(self.func, u=u, mixer_kwargs=mixer_kwargs)
+            sradius = _spectral_radius(func_for_sradius, final_output)
+            mixer_kwargs["skip_kv_update"] = False
+            log_dict["spectral radius"] = sradius.mean().to(final_output)
+
         return final_output, log_dict
 
     def _sequential_forward(self, x: Tensor, zs: Tensor, mixer_kwargs: dict) -> tuple[Tensor, list[dict]]:
@@ -199,7 +245,7 @@ class ImplicitMixin(nn.Module):
             output: output of the DEQ model (B, L, D)
             log_dict: dictionary with logging information
         """
-        assert self.f_thres > 0, "f_thres must be at least one"
+        assert self._eval_max_iter > 0, "max_iter must be at least one"
         output, log_dict = self._sequential_step(
             x, zs, mixer_kwargs, is_first_token=False
         )

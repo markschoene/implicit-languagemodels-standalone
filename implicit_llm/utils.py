@@ -32,11 +32,17 @@ def load_checkpoint(pretrained_model_name_or_path: str) -> dict:
     else:
         # Otherwise, load a single checkpoint file.
         checkpoint_path = os.path.join(pretrained_model_name_or_path, "pytorch_model.bin")
-        if not os.path.isfile(checkpoint_path):
+        safetensors_path = os.path.join(pretrained_model_name_or_path, "model.safetensors")
+        if os.path.isfile(checkpoint_path):
+            state_dict = torch.load(checkpoint_path, map_location="cpu", weights_only=True)
+        elif os.path.isfile(safetensors_path):
+            from safetensors.torch import load_file
+            state_dict = load_file(safetensors_path, device="cpu")
+        else:
             raise FileNotFoundError(
-                f"Checkpoint file not found at {checkpoint_path}. Expected a file named pytorch_model.bin."
+                f"No checkpoint found at {pretrained_model_name_or_path}. "
+                f"Expected pytorch_model.bin or model.safetensors."
             )
-        state_dict = torch.load(checkpoint_path, map_location="cpu", weights_only=True)
     return state_dict
 
 
