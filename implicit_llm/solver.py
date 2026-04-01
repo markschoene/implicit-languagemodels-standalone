@@ -172,12 +172,16 @@ class FixedPointSolver(nn.Module):
             else int(f_max_iter * eval_factor)
         )
 
-    def forward(self, func, z_init, sradius_mode=False):
+    def forward(self, func, z_init, sradius_mode=False,
+                max_iter=None, tol=None, beta=None):
         """
         Args:
             func: The fixed-point function f(z).
             z_init: Initial state, shape (B, L, D).
             sradius_mode: If True, compute spectral radius at eval time.
+            max_iter: Override max iterations (eval only).
+            tol: Override convergence tolerance (eval only).
+            beta: Override momentum factor (eval only).
 
         Returns:
             (z_out_list, info): list containing the output tensor, and solver stats dict.
@@ -191,9 +195,12 @@ class FixedPointSolver(nn.Module):
             z_out = phantom_grad(func, z_star, self.grad_steps, tau=self.tau)
             return [z_out], info
         else:
+            eval_max_iter = max_iter if max_iter is not None else self.eval_f_max_iter
+            eval_tol = tol if tol is not None else self.f_tol
+            eval_beta = beta if beta is not None else self.beta
             with torch.no_grad():
                 z_star, info = fixed_point_iter(
-                    func, z_init, self.eval_f_max_iter, self.f_tol, beta=self.beta
+                    func, z_init, eval_max_iter, eval_tol, beta=eval_beta
                 )
             if sradius_mode:
                 info["sradius"] = _spectral_radius(func, z_star)

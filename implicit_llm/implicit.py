@@ -161,7 +161,12 @@ class ImplicitMixin(nn.Module):
         sradius_mode = self.eval_config.spectral_radius if not self.training else self.sradius_mode
 
         func_to_use = partial(self.func, u=x, mixer_kwargs=mixer_kwargs)
-        z_out, info = self.deq(func_to_use, zs, sradius_mode=sradius_mode)
+        eval_kwargs = {}
+        if not self.training:
+            eval_kwargs["max_iter"] = self._eval_max_iter
+            eval_kwargs["tol"] = self._eval_tol
+            eval_kwargs["beta"] = self._eval_momentum
+        z_out, info = self.deq(func_to_use, zs, sradius_mode=sradius_mode, **eval_kwargs)
 
         output = z_out[-1]
 
